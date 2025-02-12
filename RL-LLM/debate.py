@@ -209,15 +209,17 @@ messages = [
     {"role": "system", "content": ""}
 ]
 
-while True:
-    prompt = input("User: ")
+response = "Hi, how are you?"
 
-    messages.append({"role": "user", "content": user_input})
+while True:
+    prompt = response
+
+    messages.append({"role": "user", "content": prompt})
 
     text = tokenizer.apply_chat_template(
         messages,
         tokenize=False,
-        add_generation_prompt=False
+        add_generation_prompt=True
     )
     
     model_inputs = tokenizer([text], return_tensors="pt").to(device)
@@ -232,7 +234,34 @@ while True:
         output_ids[len(input_ids):] for input_ids, output_ids in zip(model_inputs.input_ids, generated_ids)
     ]
 
-    response = tokenizer.batch_decode(generated_ids, skip_special_tokens=True)
-    print(f"Assistant: {response}")
+    response = tokenizer.batch_decode(generated_ids, skip_special_tokens=True)[0]
+    print(f"LLM 1: {response}")
+
+    messages.append({"role": "assistant", "content": response})
+    
+    prompt = response
+    
+    messages.append({"role": "user", "content": prompt})
+
+    text = tokenizer.apply_chat_template(
+        messages,
+        tokenize=False,
+        add_generation_prompt=True
+    )
+    
+    model_inputs = tokenizer([text], return_tensors="pt").to(device)
+
+    generated_ids = model.generate(
+        model_inputs.input_ids,
+        attention_mask=model_inputs.attention_mask,
+        max_new_tokens=512
+    )
+    
+    generated_ids = [
+        output_ids[len(input_ids):] for input_ids, output_ids in zip(model_inputs.input_ids, generated_ids)
+    ]
+
+    response = tokenizer.batch_decode(generated_ids, skip_special_tokens=True)[0]
+    print(f"LLM 2: {response}")
 
     messages.append({"role": "assistant", "content": response})
