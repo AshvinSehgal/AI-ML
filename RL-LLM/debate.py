@@ -210,13 +210,10 @@ messages = [
 ]
 
 while True:
-    # Get user input
-    user_input = input("User: ")
+    prompt = input("User: ")
 
-    # Add user input to the conversation
     messages.append({"role": "user", "content": user_input})
 
-    # Prepare the input text
     text = tokenizer.apply_chat_template(
         messages,
         tokenize=False,
@@ -225,7 +222,6 @@ while True:
     
     model_inputs = tokenizer([text], return_tensors="pt").to(device)
 
-    # Generate a response
     generated_ids = model.generate(
         model_inputs.input_ids,
         attention_mask=model_inputs.attention_mask,
@@ -236,9 +232,7 @@ while True:
         output_ids[len(input_ids):] for input_ids, output_ids in zip(model_inputs.input_ids, generated_ids)
     ]
 
-    # Decode and print the response
     response = tokenizer.batch_decode(generated_ids, skip_special_tokens=True)
     print(f"Assistant: {response}")
 
-    # Add the generated response to the conversation
     messages.append({"role": "assistant", "content": response})
