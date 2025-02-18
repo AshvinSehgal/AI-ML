@@ -15,56 +15,12 @@ model = AutoModelForCausalLM.from_pretrained(
 )
 tokenizer = AutoTokenizer.from_pretrained(model_name)
 
-# reward_model_name = "facebook/roberta-hate-speech-dynabench-r4-target"
-# reward_model = AutoModelForSequenceClassification.from_pretrained(reward_model_name).to(device)
-# reward_tokenizer = AutoTokenizer.from_pretrained(reward_model_name)
-
-# def compute_reward(response):
-#     batch_inputs = reward_tokenizer(response, return_tensors="pt", truncation=True, padding=True).to(device)
-#     logits = self.reward_model(input_ids=batch_inputs.input_ids, attention_mask=batch_inputs.attention_mask).logits
-#     probabilities = logits.softmax(dim=-1).tolist()
-#     with torch.no_grad():
-#         logits = reward_model(**inputs).logits
-#     non_toxic_rewards = np.array([p[1] for p in probabilities]) # Get the probability of toxic
-#     rewards = (non_toxic_rewards - 0.9) * 100
-#     return rewards
-
 messages = [{"role": "system", "content": ""}]
 
 csv_path = os.path.join(os.path.dirname(__file__), 'emotions.csv')
 
 f = open(csv_path, mode='w')
 writer = csv.writer(f)
-
-# def tokenize(text):    
-#     prompt = f"""
-#     Summarize the following conversation.
-
-#     {text['dialogue']}
-
-#     Summary:
-#     """
-#     text['input_ids'] = tokenizer.encode(prompt)
-#     text['query'] = tokenizer.decode(text['input_ids'])
-#     return text
-    
-# def preprocess_dataset(dataset, file_path):
-#     if os.path.exists(file_path):
-#         dataset = load_dataset(file_path)
-#         return dataset
-    
-#     dataset = dataset.filter(lambda x: len(x['dialogue']) > 100 and len(x['dialogue']) <= 1000, batched=False)
-#     dataset = dataset.map(tokenize, batched=False)
-#     dataset.save_to_disk(file_path)
-    
-#     return dataset
-
-# file_path = 'emotions'
-# dataset = load_dataset('knkarthick/dialogsum')
-# dataset = preprocess_dataset(dataset, file_path)
-
-# prompt = "Hi, how are you?"
-# print(f'You: {prompt}')
 
 emotion_analyzer = pipeline("text-classification", model="joeddav/distilbert-base-uncased-go-emotions-student")
 
@@ -91,18 +47,13 @@ def analyze_emotion(prompt: str) -> float:
     # Map detected emotion to a happiness scale (default to 0.5 if unknown)
     return emotion_happiness_map.get(top_emotion, 0.5)
 
-def generate_response(prompt: str) -> str:
+def generate_response(prompt: str, happiness: float) -> str:
     """
-    Generates a response using FLAN-T5, adjusting happiness based on detected emotion.
+    Generates a response using Qwen2, adjusting happiness based on detected emotion.
     """
-    happiness = analyze_emotion(prompt)  # Get happiness scale
-    
     prompt += f"Make the response {happiness*100}% happier."
     
     messages.append({"role": "user", "content": prompt})
-    
-    print(f'LLM is {happiness * 100}% happy!')
-    writer.writerow([f'LLM is {happiness * 100}% happy!'])
     
     text = tokenizer.apply_chat_template(
         messages,
@@ -130,8 +81,27 @@ def generate_response(prompt: str) -> str:
 
     return response
 
+def compute_reward(user_happiness: float, llm_happiness: float) -> float:
+    """
+    Computes the reward for the user given their happiness and the LLM's happiness.
+    """
+    return llm_happiness - user_happiness
+
+prompt = input('You: ')
+writer.writerow([f'User: {prompt}'])
+user_happiness = analyze_emotion(prompt)  # Get happiness scale
+
 for i in range(10):
+    response = generate_response(prompt, user_happiness)
+    writer.writerow([f'System: {response}'])
+    llm_happiness = analyze_emotion(response)  # Get happiness scale
+    
     prompt = input('You: ')
     writer.writerow([f'User: {prompt}'])
+    user_happiness = analyze_emotion(prompt)  # Get happiness scale
     
-    response = generate_response(prompt)
+    reward = compute_reward(user_happiness, llm_happiness)
+    
+    print(f'LLM Happiness: {llm_happiness} | User Happiness: {user_happiness} | Reward: {reward}')
+    
+    

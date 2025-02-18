@@ -38,7 +38,7 @@ class MultiCountryEnv(gym.Env):
             self.countries.append(country)
 
         self.current_step = 0
-        return self._get_observation()
+        return self._get_observation(), {}
 
     def step(self, action):
         """ Apply actions to the main country and simulate global economic effects """
@@ -64,7 +64,7 @@ class MultiCountryEnv(gym.Env):
         # Info dictionary (for logging)
         info = {"episode": {"r": reward, "l": self.current_step}}
 
-        return self._get_observation(), reward, done, info
+        return self._get_observation(), reward, done, info, {}
 
     def _apply_policies(self, country, tax_rate, investment, trade_policy):
         """ Modifies a country's economy based on tax, investment, and trade policy """
