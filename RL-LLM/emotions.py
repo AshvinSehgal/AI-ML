@@ -196,12 +196,11 @@ class ChatbotUI(QWidget):
         if not user_input:
             return
         
+        self.chat_display.append(f"<b>User:</b> {user_input}")
         user_happiness = self.analyzeEmotion(user_input)
         response = self.generateResponse(user_input, user_happiness)
         llm_happiness = self.analyzeEmotion(response)
         reward = self.computeReward(user_happiness, llm_happiness)
-        
-        self.chat_display.append(f"<b>User:</b> {user_input}")
         self.chat_display.moveCursor(QTextCursor.End)
         self.chat_display.append(f"<b>LLM:</b> {response}")
         
