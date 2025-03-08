@@ -10,18 +10,19 @@ import yfinance as yf
 class StockTradingEnv(gym.Env):
     def __init__(self, df):
         super(StockTradingEnv, self).__init__()
-        self.df = df
+        self.df = df # List of stock prices
         self.current_step = 0
-        self.balance = 10000  # Starting cash
-        self.shares_held = np.array([0] * 5)  # Shares held for each stock
+        self.balance = 1000000  # Starting cash
+        self.stocks = df.shape[1]  # Number of stocks
+        self.shares_held = np.array([0] * self.stocks)  # Shares held for each stock
         self.total_value = self.balance
-        self.action_space = spaces.Box(low=-1, high=1, shape=(df.shape[1],), dtype=np.float32)  # Buy, Sell, Hold
-        self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(df.shape[1],), dtype=np.float32)
+        self.action_space = spaces.Box(low=-1, high=1, shape=(self.stocks,), dtype=np.float32)
+        self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(self.stocks,), dtype=np.float32)
     
     def reset(self, seed=None):
         self.current_step = 0
         self.balance = 10000
-        self.shares_held = [0] * 5
+        self.shares_held = [0] * self.stocks
         self.total_value = self.balance
         vals = self.df.iloc[self.current_step].values
         return np.array([float(p) for p in vals]), {}
@@ -33,7 +34,7 @@ class StockTradingEnv(gym.Env):
         # -1 = Sell All, 0 means hold, 1 = Buy Max
         current_prices = self.df.iloc[self.current_step].values
         current_prices = np.array([float(p) for p in current_prices])
-        for i in range(len(action)):
+        for i in range(self.stocks):
             if action[i] > 0:
                 max_shares = self.balance // current_prices[i]
                 num_shares = self.shares_held[i] + (max_shares * action[i])
@@ -45,16 +46,6 @@ class StockTradingEnv(gym.Env):
                 earning = (self.shares_held[i] - num_shares) * current_prices[i]
                 self.shares_held[i] = num_shares
                 self.balance += earning
-            # if action[i] > 0:
-            #     num_shares = min(self.shares_held[i] + action[i], self.balance // current_price)
-            #     cost = (num_shares - self.shares_held[i]) * current_prices[i]
-            #     self.shares_held[i] = num_shares
-            #     self.balance -= cost
-            # elif action[i] < 0:
-            #     num_shares = max(self.shares_held[i] - action[i], 0)
-            #     earning = (self.shares_held[i] - num_shares) * current_prices[i]
-            #     self.shares_held[i] = num_shares
-            #     self.balance += earning
         self.current_step += 1
         done = self.current_step >= len(self.df) - 1
         self.total_value = self.balance + np.sum(self.shares_held * current_prices)
@@ -62,33 +53,23 @@ class StockTradingEnv(gym.Env):
         vals = self.df.iloc[self.current_step].values
         return np.array([float(p) for p in vals]), reward, done, {}, {}
 
+tickers = ['AAL', 'AAPL', 'ABT', 'ADBE', 'AMZN', 'BAC', 'BLK', 'CL', 'COKE', 'CRM', 'DPZ', 'FOX', 'H', '^IXIC', 'JPM', 'LOGI', 'MSCI', 'NFLX', 'NVDA', 'RACE', 'SONY', 'TEAM', 'UAL', 'V', 'WMT', 'ZM']
 
-# current_file_dir = os.path.dirname(os.path.abspath(__file__))
-aapl_stock = yf.download('AAPL', period='5y', interval='1d').to_csv('aapl_stock.csv')
-ixic_stock = yf.download('^IXIC', period='5y', interval='1d').to_csv('^ixic_stock.csv')
-bac_stock = yf.download('BAC', period='5y', interval='1d').to_csv('bac_stock.csv')
-amzn_stock = yf.download('AMZN', period='5y', interval='1d').to_csv('amzn_stock.csv')
-nvda_stock = yf.download('NVDA', period='5y', interval='1d').to_csv('nvda_stock.csv')
+for ticker in tickers:
+    stock = yf.download(ticker, period='5y', interval='1d').to_csv(f'{ticker}_stock.csv')
 
-# Load stock data (replace with actual data source)
+# Load stock data
 df = pd.DataFrame({
-    'AAPL': pd.read_csv('aapl_stock.csv')['Close'].values[2:],
-    'IXIC': pd.read_csv('^ixic_stock.csv')['Close'].values[2:],
-    'BAC': pd.read_csv('bac_stock.csv')['Close'].values[2:],
-    'AMZN': pd.read_csv('amzn_stock.csv')['Close'].values[2:],
-    'NVDA': pd.read_csv('nvda_stock.csv')['Close'].values[2:]
+    ticker: pd.read_csv(f'{ticker}_stock.csv')['Close'].values[2:] for ticker in tickers
 })
 
-os.remove('aapl_stock.csv')
-os.remove('^ixic_stock.csv')
-os.remove('bac_stock.csv')
-os.remove('amzn_stock.csv')
-os.remove('nvda_stock.csv')
+for ticker in tickers:
+    os.remove(f'{ticker}_stock.csv')
 
 # Train PPO agent
-vec_env = make_vec_env(lambda: StockTradingEnv(df), n_envs=5)
+vec_env = make_vec_env(lambda: StockTradingEnv(df), n_envs=10)
 model = PPO("MlpPolicy", vec_env, verbose=1)
-model.learn(total_timesteps=1000000)
+model.learn(total_timesteps=10000000)
 model.save('Stocks-PPO')
 
 del model
