@@ -8,13 +8,18 @@ import re
 import os
 from PyQt5.QtGui import *
 from PyQt5.QtWidgets import *
+from PyQt5.QtCore import *
 import webbrowser
+from io import BytesIO
+import html
+
+os.environ["QT_LOGGING_RULES"] = "qt.gui.icc=false"
 
 nlp = spacy.load("en_core_web_sm")
 
 GEO_KEYWORDS = ['war', 'conflict', 'military', 'trade', 'diplomacy', 'sanctions', 'border', 'embargo', 'treaty', 'geopolitics']
 
-COUNTRIES = ['afghanistan', 'angola', 'anguilla', 'aland islands', 'albania', 'andorra', 'united arab emirates', 'argentina', 'armenia',
+COUNTRIES = ['afghanistan', 'angola', 'anguilla', 'albania', 'andorra', 'united arab emirates', 'argentina', 'armenia',
              'antarctica', 'antigua and barbuda', 'australia', 'austria', 'azerbaijan', 'belgium', 'burkina faso', 'bangladesh', 'bulgaria',
              'bahrain', 'bahamas', 'bosnia and herzegovina', 'belarus', 'bermuda', 'bolivia', 'brazil', 'bhutan',
              'botswana', 'central african republic', 'canada', 'switzerland', 'chile', 'china', 'cote d\'ivoire', 'cameroon', 'congo',
@@ -52,7 +57,7 @@ ABBREVIATIONS = {
 NEWS_API_KEY = '20a4bc1d3bc14ab1b5520927ac099d52'
 NEWS_ENDPOINT = 'https://newsapi.org/v2/everything'
 
-PATH_TO_CSV = 'news.csv'
+PATH_TO_CSV = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'news.csv')
 
 news_dict = {
             'id': [],
@@ -61,8 +66,13 @@ news_dict = {
             'description': [],
             'content': [],
             'url': [],
+            'image': [],
             'country': []
 }
+
+ids = []
+news_slides = []
+current_idx = []
 
 if os.path.exists(PATH_TO_CSV):
     news_df = pl.read_csv(PATH_TO_CSV)
@@ -70,23 +80,67 @@ if os.path.exists(PATH_TO_CSV):
         news_dict[col] = news_df[col].to_list()
 
 def news_line(article):
-    news_line = QHBoxLayout()
+    news_slide = QVBoxLayout()
     news_widget = QWidget()
-    news_widget.setLayout(news_line)
+    
+    news_image = QLabel()
+    # news_image.setFixedSize(800, 800)
+    response = requests.get(article['image'])
+    image_data = BytesIO(response.content)
+    news_pixmap = QPixmap()
+    news_pixmap.loadFromData(image_data.read())
+    news_pixmap = news_pixmap.scaled(800, 800, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+    news_image.setPixmap(news_pixmap)
+    news_image.adjustSize()
+    news_image.setAlignment(Qt.AlignCenter)
+    
     news_source = QLabel(article['source'])
+    news_source.setAlignment(Qt.AlignCenter)
+    news_source.setFont(QFont('Arial', 30))
     news_source.setStyleSheet("font-weight: bold;")
+    news_source.setWordWrap(True)
+    news_source.adjustSize()
+    
     news_headlines = QLabel(article['title'])
+    news_headlines.setFont(QFont('Arial', 24))
+    news_headlines.setAlignment(Qt.AlignCenter)
+    news_headlines.setWordWrap(True)
+    news_headlines.adjustSize()
+    
+    news_content = QLabel(article['content'])
+    news_content.setFont(QFont('Arial', 16))
+    news_content.setAlignment(Qt.AlignCenter)
+    news_content.setWordWrap(True)
+    news_content.adjustSize()
+    
     news_link = QPushButton('Read More')
     news_link.clicked.connect(lambda: redirect_to_url(article['url']))
-    news_line.addWidget(news_source)
-    news_line.addWidget(news_headlines)
-    news_line.addWidget(news_link)
+    
+    news_slide.addWidget(news_image)
+    news_slide.addWidget(news_source)
+    news_slide.addWidget(news_headlines)
+    news_slide.addWidget(news_content)
+    news_slide.addWidget(news_link)
+    
+    news_widget.setLayout(news_slide)
     return news_widget
     
 def redirect_to_url(url):
-    webbrowser.open(url)
-     
-
+    webbrowser.open(url) 
+    
+def prev_article(news_list):
+    current_idx[0] -= 1
+    if current_idx[0] < 0:
+        current_idx[0] = 0
+        return
+    news_list.setCurrentIndex(current_idx[0])
+    
+def next_article(news_list):
+    current_idx[0] += 1
+    if current_idx[0] >= len(ids):
+        current_idx[0] = len(ids) - 1
+    news_list.setCurrentIndex(current_idx[0])
+    
 def initialize_ui():
     fetch_latest_news()
     app = QApplication([])
@@ -107,40 +161,48 @@ def initialize_ui():
     countries_widget = QWidget()
     countries_inner_layout = QVBoxLayout()
     
-    all_countries_label = QLabel('ALL')
+    all_countries_label = QPushButton('ALL')
     countries_inner_layout.addWidget(all_countries_label)
     for country in set(news_dict['country']):
-        country_label = QLabel(country)
+        country_label = QPushButton(country)
         countries_inner_layout.addWidget(country_label)
         
     countries_widget.setLayout(countries_inner_layout)
     countries_list.setWidget(countries_widget)
     
-    news_outer_layout = QVBoxLayout()
-    news_list = QScrollArea()
-    news_outer_layout.addWidget(news_list)
-    app_layout.addLayout(news_outer_layout)
+    news_layout = QHBoxLayout()
+    
+    prev_news_button = QPushButton('<')
+    prev_news_button.setFont(QFont('Arial', 50))
+    prev_news_button.clicked.connect(lambda: prev_article(news_list))
+    news_layout.addWidget(prev_news_button)
     
     news_widget = QWidget()
-    news_inner_layout = QVBoxLayout()
-        
+    news_list = QStackedLayout()
+    news_widget.setLayout(news_list)
+    current_idx.append(0) 
     for i in range(len(news_dict['id'])):
+        ids.append(news_dict['id'][i])
         article = {
             'source': news_dict['source'][i],
             'title': news_dict['title'][i],
-            'url': news_dict['url'][i]
+            'url': news_dict['url'][i],
+            'image': news_dict['image'][i],
+            'content': news_dict['content'][i]
         }
-        news_inner_layout.addWidget(news_line(article))
-        
-    news_widget.setLayout(news_inner_layout)
-    news_list.setWidget(news_widget)
+        news_list.addWidget(news_line(article))
+    #     news_layout.addWidget(news_line(article))
+    news_layout.addWidget(news_widget)
 
-    fetch_news_button = QPushButton("Fetch News")
-    fetch_news_button.clicked.connect(fetch_latest_news)
-    news_outer_layout.addWidget(fetch_news_button)
+    next_news_button = QPushButton('>')
+    next_news_button.setFont(QFont('Arial', 50))
+    next_news_button.clicked.connect(lambda: next_article(news_list))
+    news_layout.addWidget(next_news_button)
+    
+    app_layout.addLayout(news_layout)
     
     app_layout.setStretchFactor(countries_outer_layout, 1)
-    app_layout.setStretchFactor(news_outer_layout, 4)
+    app_layout.setStretchFactor(news_layout, 4)
 
     window.setLayout(app_layout)
     window.show()
@@ -165,13 +227,14 @@ def fetch_latest_news():
                 insert_article(article, country)         
     
     news_df = pl.DataFrame(news_dict)
-    news_df.write_csv('news.csv')
+    news_df.write_csv(PATH_TO_CSV)
     print('Saved news to news.csv...')
 
 def clean_content(text):
     text = re.sub(r'\[\+\d+\s+chars\]$', '', text.strip())
     text = re.sub(r'\s*\b\w*…$', '', text.strip())
     text = re.sub(r'\s*\b\w*\.{3,}$', '', text.strip())
+    text = html.unescape(text)
     return text
 
 def insert_article(article, country):
@@ -181,11 +244,13 @@ def insert_article(article, country):
         return
     else:
         news_dict['id'].append(news_dict['id'][-1] + 1)
+        
     news_dict['source'].append(article['source']['name'])
     news_dict['title'].append(article['title'])
     news_dict['description'].append(article['description'])
     news_dict['content'].append(article['content'])
     news_dict['url'].append(article['url'])
+    news_dict['image'].append(article['urlToImage'])
     news_dict['country'].append(country.upper())
     
     if len(news_dict['id']) >= 1000:
@@ -195,6 +260,7 @@ def insert_article(article, country):
         news_dict['description'].pop[0]
         news_dict['content'].pop[0]
         news_dict['url'].pop[0]
+        news_dict['image'].pop[0]
         news_dict['country'].pop[0]
 
 def extract_countries(text):
