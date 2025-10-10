@@ -3,15 +3,6 @@ import matplotlib.pyplot as plt
 import math
 import random
 from kaggle_environments import evaluate, make, utils
-# import tensorflow as tf
-# from tensorflow import keras
-# from keras.models import Sequential
-# from keras.layers import Input, Dense
-# import os
-# import logging
-
-# logging.getLogger("kaggle_environments").setLevel(logging.ERROR)
-# os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 
 env = make("connectx")
 
@@ -130,27 +121,5 @@ def minimax(state, depth, alpha, beta, maxPlayer, plr, r, c, i):
         return best_col, value
     
 def agent(obs, config):
-    action, _ = minimax(state=obs.board, depth=4, alpha=-math.inf, beta=math.inf, maxPlayer=True, plr=obs.mark, r=config.rows, c=config.columns, i=config.inarow)
+    action, _ = minimax(state=obs.board, depth=5, alpha=-math.inf, beta=math.inf, maxPlayer=True, plr=obs.mark, r=config.rows, c=config.columns, i=config.inarow)
     return action
-
-
-# trainer = env.train([None, "random"])
-# rewards = []
-# r_mean = []
-# for ep in range(1000):
-#     state = trainer.reset()
-#     done = False
-#     reward = 0
-#     i = 0
-#     while i < 100000:
-#         action = agent(state, env.configuration)
-#         nextS, reward, done, _ = trainer.step(action)
-#         reward = 0 if reward is None else reward
-#         if done:
-#             break
-#         state = nextS
-#         i += 1
-#     rewards.append(reward)
-#     r_mean.append(np.mean(rewards))
-#     plt.plot(r_mean)
-#     plt.savefig('r_mean')
