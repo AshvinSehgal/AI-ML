@@ -198,6 +198,8 @@ print("Total trainable parameters:", total_params)
 tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
 prompt = "Once upon a time, in a distant land"
 input_ids = tokenizer.encode(prompt, add_special_tokens=False)
+print(input_ids)
+print(dsd)
 
 with tf.Session() as sess:
     sess.run(tf.global_variables_initializer())

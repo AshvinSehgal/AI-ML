@@ -155,26 +155,25 @@ class ChatbotUI(QWidget):
     
     def setupModels(self):
         self.device = 'mps' if torch.backends.mps.is_available() else 'cpu'
-        self.model_name = 'ystemsrx/Qwen2-Boundless'
-        self.model = AutoModelForCausalLM.from_pretrained(self.model_name, torch_dtype="auto", device_map="auto")
+        self.model_name = 'meta-llama/Llama-3.2-1B-Instruct'
+        self.model = AutoModelForCausalLM.from_pretrained(self.model_name, dtype="auto", device_map=self.device)
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
-        self.emotion_analyzer = pipeline("text-classification", model="joeddav/distilbert-base-uncased-go-emotions-student")
+        self.emotion_analyzer = pipeline("text-classification", model="j-hartmann/emotion-english-distilroberta-base")
         
         self.emotion_happiness_map = {
-            "joy": 0.2, "love": 0.3, "surprise": 0.4, "neutral": 0.5, 
-            "sadness": 0.7, "anger": 0.9, "fear": 0.8, "disgust": 0.8, "guilt": 0.7
+            "joy": 1, "love": 0.6, "surprise": 0.2, "neutral": 0, 
+            "sadness": -1, "anger": -1, "fear": -0.8, "disgust": -0.4, "guilt": -0.9
         }
     
     def analyzeEmotion(self, text):
         emotions = self.emotion_analyzer(text)
+        print(emotions)
         top_emotion = emotions[0]['label']
         happiness = self.emotion_happiness_map.get(top_emotion, 0.5)
-        
         self.emotion_label.setText(f"User Emotion: {top_emotion}")
         return happiness
     
     def generateResponse(self, prompt, happiness):
-        prompt += f" Make the response {happiness*100}% happier."
         self.messages.append({"role": "user", "content": prompt})
         
         text = self.tokenizer.apply_chat_template(self.messages, tokenize=False, add_generation_prompt=True)
